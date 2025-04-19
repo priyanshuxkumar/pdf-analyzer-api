@@ -1,14 +1,17 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from pathlib import Path
+import uuid
 import shutil
+from pathlib import Path
+
 from fastapi import Body, FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
 from helper import chat_gemini_llm, get_relevent_chunks, get_system_prompt, load_file, split_file, store_embeddings_vector_store
-from embeddings_model import gemini_embeddings
+from embeddings_model import get_gemini_embeddings
 from retriever import get_retriever
-import uuid
 
 app = FastAPI()
 
@@ -38,19 +41,28 @@ def upload_file(user_id: str = Body(...), file: UploadFile = File(...)):
         docs = load_file(f"{user_id}::{file.filename}")
         split_docs = split_file(docs)
        
-        #store embedding on store
+        #getting embedding model and store embedding on store
+        gemini_embeddings = get_gemini_embeddings()
         store_embeddings_vector_store(gemini_embeddings, split_docs, user_id)
 
         print("Embedding stored successfully")
 
-        return {
-            "status": "success", 
-            "filename": file.filename,
-            "user_id" : user_id
-        }
+        return JSONResponse(
+            status_code=200,
+            content = {
+                "status": "success",
+                "filename": file.filename,
+                "user_id" : user_id
+            }
+        )
     except Exception as e:
-        print(e)
-        return {"status": "error", "detail": str(e)}
+        return JSONResponse(
+            status_code=500,
+            content = {
+                "status": "failed",
+                "content": str(e)
+            }
+        )
 
 
 @app.post("/api/chat")
@@ -58,6 +70,9 @@ async def chat(payload: dict):
     try:
         user_id = payload.get("user_id")
         query = payload.get("query")
+
+        #getting embedding model
+        gemini_embeddings = get_gemini_embeddings()
         
         retriever = get_retriever(gemini_embeddings, user_id)
 
@@ -68,12 +83,18 @@ async def chat(payload: dict):
         # Chat
         response = chat_gemini_llm(system_prompt, query)
         
-        return {
-            "status" : "success",
-            "content" : response.content
-        }
+        return JSONResponse(
+            status_code=200,
+            content = {
+                "status": "success",
+                "content": response.content
+            }
+        )
     except Exception as e:
-        return {
-            "status": "error", 
-            "detail": str(e)
-        }
+        return JSONResponse(
+            status_code=500,
+            content = {
+                "status": "failed",
+                "content": str(e)
+            }
+        )
