@@ -5,8 +5,8 @@ from pathlib import Path
 import shutil
 from fastapi import Body, FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from helper import chat_llm, get_relevent_chunks, get_system_prompt, load_file, split_file, store_embeddings_vector_store
-from embeddings_model import embeddings
+from helper import chat_gemini_llm, get_relevent_chunks, get_system_prompt, load_file, split_file, store_embeddings_vector_store
+from embeddings_model import gemini_embeddings
 from retriever import get_retriever
 import uuid
 
@@ -39,7 +39,7 @@ def upload_file(user_id: str = Body(...), file: UploadFile = File(...)):
         split_docs = split_file(docs)
        
         #store embedding on store
-        store_embeddings_vector_store(embeddings, split_docs, user_id)
+        store_embeddings_vector_store(gemini_embeddings, split_docs, user_id)
 
         print("Embedding stored successfully")
 
@@ -59,15 +59,15 @@ async def chat(payload: dict):
         user_id = payload.get("user_id")
         query = payload.get("query")
         
-        retriever = get_retriever(embeddings, user_id)
+        retriever = get_retriever(gemini_embeddings, user_id)
 
         relevant_chunks = get_relevent_chunks(retriever, query) 
 
         system_prompt = get_system_prompt(relevant_chunks)
-
+        
         # Chat
-        response = chat_llm(system_prompt, query)
-
+        response = chat_gemini_llm(system_prompt, query)
+        
         return {
             "status" : "success",
             "content" : response.content
